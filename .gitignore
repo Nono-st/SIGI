@@ -1,0 +1,22 @@
+# Dependencias y compilaciones
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Base de datos local
+database/*.db
+database/*.db-journal
+database/*.db-wal
+database/*.db-shm
+
+# Archivos temporales
+*.log
+*.local
+.env
+.env.*
+
+# Editores
+.vscode/
+.idea/
+.DS_Store
+frontend/.vscode/
