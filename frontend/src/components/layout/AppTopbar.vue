@@ -4,7 +4,7 @@ import { UserRound, Bell } from '@lucide/vue'
 defineProps({
     title: {
         type: String,
-        default: 'Dashboard',
+        default: 'Inicio',
     },
     userName: {
         type: String,

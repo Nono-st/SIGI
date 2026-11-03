@@ -36,7 +36,7 @@ function navigateTo(page) {
     <main class="main-content">
 
       <AppTopbar
-        :title="route.meta.title || 'Dashboard'"
+        :title="route.meta.title || 'Inicio'"
         :user-name="usuario.nombre"
         :user-role="usuario.rol"
       />

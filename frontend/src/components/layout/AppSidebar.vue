@@ -25,7 +25,7 @@ const emit = defineEmits(['navigate'])
 const collapsed = ref(false)
 
 const menuItems = [
-    { name: 'Dashboard', path: 'dashboard', icon: LayoutDashboard },
+    { name: 'Inicio', path: 'dashboard', icon: LayoutDashboard },
     { name: 'Productos', path: 'productos', icon: Package },
     { name: 'Categorías', path: 'categorias', icon: Tags },
     { name: 'Movimientos', path: 'movimientos', icon: ArrowLeftRight },
