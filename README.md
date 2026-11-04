@@ -122,4 +122,4 @@ SIGI continúa en desarrollo. Algunas funcionalidades y módulos todavía se enc
 
 El objetivo es avanzar hacia un sistema que permita administrar integralmente los productos, controlar los movimientos de inventario y consultar información útil para la gestión del stock.
 
-##
+

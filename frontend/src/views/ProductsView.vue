@@ -1,11 +1,32 @@
+
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { obtenerProductos } from '../services/productos'
+import {
+    obtenerProductos,
+    crearProducto,
+    actualizarProducto,
+    eliminarProducto
+} from '../services/productos'
 
 // Datos provenientes del backend.
 const productos = ref([])
 const cargando = ref(true)
 const error = ref('')
+
+// Controles del formulario.
+const mostrarFormulario = ref(false)
+const guardando = ref(false)
+const errorFormulario = ref('')
+const modoEdicion = ref(false)
+const productoEditando = ref(null)
+
+const nuevoProducto = ref({
+    nombre: '',
+    precio: '',
+    stock: '',
+    stock_minimo: 5,
+    categoria_id: ''
+})
 
 // Controles de búsqueda y filtros.
 const busqueda = ref('')
@@ -40,6 +61,22 @@ const categorias = computed(() => {
     return [...new Set(productos.value.map(producto => producto.categoria))]
         .filter(Boolean)
         .sort()
+})
+
+const categoriasFormulario = computed(() => {
+    const unicas = new Map()
+
+    productos.value.forEach(producto => {
+        unicas.set(
+            Number(producto.categoria_id),
+            producto.categoria
+        )
+    })
+
+    return Array.from(unicas, ([id, nombre]) => ({
+        id,
+        nombre
+    }))
 })
 
 // Calcula el estado de cada producto.
@@ -120,12 +157,141 @@ watch(
     }
 )
 
+// Evita permanecer en una página inexistente después de eliminar.
+watch(totalPaginas, (total) => {
+    if (paginaActual.value > total) {
+        paginaActual.value = total
+    }
+})
+
 // Limpia todos los filtros.
 function limpiarFiltros() {
     busqueda.value = ''
     categoriaSeleccionada.value = ''
     estadoSeleccionado.value = ''
     paginaActual.value = 1
+}
+
+// Reinicia los campos del formulario.
+function reiniciarFormulario() {
+    nuevoProducto.value = {
+        nombre: '',
+        precio: '',
+        stock: '',
+        stock_minimo: 5,
+        categoria_id: ''
+    }
+}
+
+// Abre el formulario para registrar un producto.
+function abrirFormulario() {
+    errorFormulario.value = ''
+    modoEdicion.value = false
+    productoEditando.value = null
+    reiniciarFormulario()
+    mostrarFormulario.value = true
+}
+
+// Abre el formulario para modificar un producto.
+function editarProducto(producto) {
+    errorFormulario.value = ''
+    modoEdicion.value = true
+    productoEditando.value = producto.id
+
+    nuevoProducto.value = {
+        nombre: producto.nombre,
+        precio: producto.precio,
+        stock: producto.stock,
+        stock_minimo: producto.stock_minimo,
+        categoria_id: Number(producto.categoria_id)
+    }
+
+    mostrarFormulario.value = true
+}
+
+// Elimina un producto.
+async function borrarProducto(producto) {
+    const confirmar = window.confirm(
+        `¿Estás seguro de eliminar "${producto.nombre}"?`
+    )
+
+    if (!confirmar) return
+
+    try {
+        await eliminarProducto(producto.id)
+        await cargarProductos()
+    } catch (err) {
+        window.alert(err.message || 'No se pudo eliminar el producto.')
+    }
+}
+
+// Cierra y reinicia el formulario.
+function cerrarFormulario() {
+    mostrarFormulario.value = false
+    errorFormulario.value = ''
+    modoEdicion.value = false
+    productoEditando.value = null
+    reiniciarFormulario()
+}
+
+// Registra o modifica un producto.
+async function guardarProducto() {
+    errorFormulario.value = ''
+
+    if (!nuevoProducto.value.nombre.trim()) {
+        errorFormulario.value = 'Ingresá el nombre del producto.'
+        return
+    }
+
+    if (
+        nuevoProducto.value.precio === '' ||
+        nuevoProducto.value.stock === '' ||
+        nuevoProducto.value.stock_minimo === '' ||
+        nuevoProducto.value.categoria_id === ''
+    ) {
+        errorFormulario.value = 'Completá todos los campos.'
+        return
+    }
+
+    const precio = Number(nuevoProducto.value.precio)
+    const stock = Number(nuevoProducto.value.stock)
+    const stockMinimo = Number(nuevoProducto.value.stock_minimo)
+    const categoriaId = Number(nuevoProducto.value.categoria_id)
+
+    if (
+        !Number.isFinite(precio) || precio < 0 ||
+        !Number.isInteger(stock) || stock < 0 ||
+        !Number.isInteger(stockMinimo) || stockMinimo < 0 ||
+        !Number.isInteger(categoriaId) || categoriaId <= 0
+    ) {
+        errorFormulario.value = 'Revisá los valores ingresados.'
+        return
+    }
+
+    guardando.value = true
+
+    try {
+        const datosProducto = {
+            nombre: nuevoProducto.value.nombre.trim(),
+            precio,
+            stock,
+            stock_minimo: stockMinimo,
+            categoria_id: categoriaId
+        }
+
+        if (modoEdicion.value) {
+            await actualizarProducto(productoEditando.value, datosProducto)
+        } else {
+            await crearProducto(datosProducto)
+        }
+
+        cerrarFormulario()
+        await cargarProductos()
+    } catch (err) {
+        errorFormulario.value = err.message || 'No se pudo guardar el producto.'
+    } finally {
+        guardando.value = false
+    }
 }
 
 // Formatea los precios en pesos argentinos.
@@ -148,10 +314,133 @@ function formatearPrecio(precio) {
                 <p>Administrá los productos de tu inventario.</p>
             </div>
 
-            <button class="btn-primary" disabled title="Disponible en la próxima etapa">
+            <button class="btn-primary" @click="abrirFormulario">
                 <span>＋</span>
                 Nuevo producto
             </button>
+        </div>
+
+        <!-- Formulario para registrar o modificar un producto -->
+        <div
+            v-if="mostrarFormulario"
+            class="modal-overlay"
+            @click.self="cerrarFormulario"
+        >
+            <form class="product-form" @submit.prevent="guardarProducto">
+
+                <div class="form-heading">
+                    <div>
+                        <h2>{{ modoEdicion ? 'Editar producto' : 'Nuevo producto' }}</h2>
+                        <p>
+                            {{
+                                modoEdicion
+                                    ? 'Modificá los datos del producto.'
+                                    : 'Completá los datos del producto.'
+                            }}
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="form-close"
+                        @click="cerrarFormulario"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <div class="form-grid">
+                    <label>
+                        Nombre
+                        <input
+                            v-model="nuevoProducto.nombre"
+                            type="text"
+                            maxlength="120"
+                            placeholder="Ej. Alfajor"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        Precio
+                        <input
+                            v-model="nuevoProducto.precio"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        Stock actual
+                        <input
+                            v-model="nuevoProducto.stock"
+                            type="number"
+                            min="0"
+                            step="1"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        Stock mínimo
+                        <input
+                            v-model="nuevoProducto.stock_minimo"
+                            type="number"
+                            min="0"
+                            step="1"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        Categoría
+                        <select v-model="nuevoProducto.categoria_id" required>
+                            <option value="" disabled>
+                                Seleccioná una categoría
+                            </option>
+
+                            <option
+                                v-for="categoria in categoriasFormulario"
+                                :key="categoria.id"
+                                :value="categoria.id"
+                            >
+                                {{ categoria.nombre }}
+                            </option>
+                        </select>
+                    </label>
+                </div>
+
+                <p v-if="errorFormulario" class="form-error">
+                    {{ errorFormulario }}
+                </p>
+
+                <div class="form-actions">
+                    <button
+                        type="button"
+                        class="btn-cancel"
+                        @click="cerrarFormulario"
+                    >
+                        Cancelar
+                    </button>
+
+                    <button
+                        type="submit"
+                        class="btn-primary"
+                        :disabled="guardando"
+                    >
+                        {{
+                            guardando
+                                ? 'Guardando...'
+                                : modoEdicion
+                                    ? 'Guardar cambios'
+                                    : 'Guardar producto'
+                        }}
+                    </button>
+                </div>
+
+            </form>
         </div>
 
         <!-- Estadísticas -->
@@ -292,6 +581,7 @@ function formatearPrecio(precio) {
                             <th>Stock actual</th>
                             <th>Stock mínimo</th>
                             <th>Estado</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
 
@@ -337,6 +627,24 @@ function formatearPrecio(precio) {
                                 >
                                     {{ obtenerEstado(producto) }}
                                 </span>
+                            </td>
+
+                            <td class="actions-cell">
+                                <button
+                                    type="button"
+                                    class="btn-edit"
+                                    @click="editarProducto(producto)"
+                                >
+                                    Editar
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="btn-delete"
+                                    @click="borrarProducto(producto)"
+                                >
+                                    Eliminar
+                                </button>
                             </td>
                         </tr>
                     </tbody>
@@ -390,7 +698,6 @@ function formatearPrecio(precio) {
 }
 
 /* Encabezado */
-
 .page-header {
     display: flex;
     align-items: center;
@@ -417,19 +724,23 @@ function formatearPrecio(precio) {
     padding: 11px 16px;
     border: none;
     border-radius: 8px;
-    background: var(--color-primary);
-    color: white;
+    background: #0284c7;
+    color: #ffffff;
     font-size: 13px;
     font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #0369a1;
 }
 
 .btn-primary:disabled {
     cursor: not-allowed;
     opacity: 0.7;
 }
-
 /* Estadísticas */
-
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -498,7 +809,6 @@ function formatearPrecio(precio) {
 }
 
 /* Valor del inventario */
-
 .inventory-value {
     display: flex;
     justify-content: space-between;
@@ -528,7 +838,6 @@ function formatearPrecio(precio) {
 }
 
 /* Filtros */
-
 .filters-card,
 .table-card {
     background: white;
@@ -570,6 +879,7 @@ function formatearPrecio(precio) {
     color: #475569;
     font-size: 12px;
     font-weight: 500;
+    cursor: pointer;
 }
 
 .btn-clear:hover {
@@ -627,7 +937,6 @@ function formatearPrecio(precio) {
 }
 
 /* Tabla */
-
 .table-card {
     overflow: hidden;
 }
@@ -702,8 +1011,42 @@ tbody tr:last-child td {
     font-weight: 600;
 }
 
-/* Estados */
+/* Acciones */
+.actions-cell {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
 
+.btn-edit,
+.btn-delete {
+    padding: 7px 10px;
+    border: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-edit {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.btn-edit:hover {
+    background: #bae6fd;
+}
+
+.btn-delete {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.btn-delete:hover {
+    background: #fecaca;
+}
+
+/* Estados */
 .status {
     display: inline-block;
     padding: 5px 9px;
@@ -728,7 +1071,6 @@ tbody tr:last-child td {
 }
 
 /* Mensajes */
-
 .message,
 .empty-state {
     padding: 32px;
@@ -754,6 +1096,7 @@ tbody tr:last-child td {
     border-radius: 7px;
     background: var(--color-primary);
     color: white;
+    cursor: pointer;
 }
 
 .empty-state span {
@@ -773,7 +1116,6 @@ tbody tr:last-child td {
 }
 
 /* Paginación */
-
 .pagination {
     display: flex;
     justify-content: space-between;
@@ -798,6 +1140,7 @@ tbody tr:last-child td {
     background: white;
     color: #475569;
     font-size: 11px;
+    cursor: pointer;
 }
 
 .pagination-buttons button:disabled {
@@ -811,7 +1154,6 @@ tbody tr:last-child td {
 }
 
 /* Adaptación a pantallas pequeñas */
-
 @media (max-width: 1050px) {
     .stats-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -868,6 +1210,119 @@ tbody tr:last-child td {
     .pagination {
         align-items: flex-start;
         flex-direction: column;
+    }
+}
+
+/* Ventana emergente del formulario */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.product-form {
+    width: 100%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 26px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+
+.form-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.form-heading h2 {
+    margin: 0 0 6px;
+    color: #1e293b;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.form-heading p {
+    margin: 0;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.form-close {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 26px;
+    cursor: pointer;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+}
+
+.form-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    color: #334155;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.form-grid input,
+.form-grid select {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #1e293b;
+    font: inherit;
+}
+
+.form-grid input:focus,
+.form-grid select:focus {
+    outline: 2px solid #0284c7;
+    outline-offset: 1px;
+}
+
+.form-error {
+    margin-top: 16px;
+    color: #dc2626;
+    font-size: 14px;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.btn-cancel {
+    padding: 10px 16px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #334155;
+    cursor: pointer;
+}
+
+@media (max-width: 600px) {
+    .form-grid {
+        grid-template-columns: 1fr;
     }
 }
 </style>
