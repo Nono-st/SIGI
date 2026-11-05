@@ -1,5 +1,6 @@
+
 <script setup>
-import { UserRound, Bell } from '@lucide/vue'
+import { UserRound, Bell, LogOut } from '@lucide/vue'
 
 defineProps({
     title: {
@@ -10,26 +11,23 @@ defineProps({
         type: String,
         default: 'Usuario de prueba',
     },
-
     userRole: {
         type: String,
         default: 'Administrador',
     },
 })
+
+const emit = defineEmits(['logout'])
 </script>
 
 <template>
     <header class="topbar">
-
-    <!-- Título de la sección -->
         <div class="topbar-title">
             <h2>{{ title }}</h2>
             <p>Sistema de Gestión de Inventario</p>
         </div>
 
-    <!-- Información del usuario -->
         <div class="topbar-actions">
-
             <button class="notification-button" title="Notificaciones">
                 <Bell :size="20" />
             </button>
@@ -45,6 +43,14 @@ defineProps({
                 </div>
             </div>
 
+            <button
+                class="logout-button"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+                @click="emit('logout')"
+            >
+                <LogOut :size="19" />
+            </button>
         </div>
     </header>
 </template>
@@ -75,10 +81,11 @@ defineProps({
 .topbar-actions {
     display: flex;
     align-items: center;
-    gap: 22px;
+    gap: 18px;
 }
 
-.notification-button {
+.notification-button,
+.logout-button {
     width: 38px;
     height: 38px;
     border: 1px solid #e2e8f0;
@@ -87,10 +94,17 @@ defineProps({
     color: #64748b;
     display: grid;
     place-items: center;
+    cursor: pointer;
 }
 
 .notification-button:hover {
     background: #f8fafc;
+}
+
+.logout-button:hover {
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fecaca;
 }
 
 .user-profile {
@@ -116,8 +130,8 @@ defineProps({
 }
 
 .user-info strong {
-        color: #334155;
-        font-size: 12px;
+    color: #334155;
+    font-size: 12px;
 }
 
 .user-info span {

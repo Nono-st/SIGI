@@ -11,7 +11,7 @@ const routes = [
     {
         path: '/productos',
         name: 'productos',
-        component: ()=> import('../views/ProductsView.vue'),
+        component: () => import('../views/ProductsView.vue'),
         meta: { title: 'Productos' },
     },
     {
@@ -35,7 +35,7 @@ const routes = [
     {
         path: '/usuarios',
         name: 'usuarios',
-        component: PlaceholderView,
+        component: () => import('../views/UsersView.vue'),
         meta: { title: 'Usuarios' },
     },
 ]
