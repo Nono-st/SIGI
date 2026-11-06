@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import PlaceholderView from '../views/PlaceholderView.vue'
 
 const routes = [
     {
@@ -17,19 +16,19 @@ const routes = [
     {
         path: '/categorias',
         name: 'categorias',
-        component: PlaceholderView,
+        component: () => import('../views/CategoriasView.vue'),
         meta: { title: 'Categorías' },
     },
     {
         path: '/movimientos',
         name: 'movimientos',
-        component: PlaceholderView,
+        component:() => import('../views/MovimientosView.vue'),
         meta: { title: 'Movimientos' },
     },
     {
         path: '/reportes',
         name: 'reportes',
-        component: PlaceholderView,
+        component: () => import('../views/ReportesView.vue'),
         meta: { title: 'Reportes' },
     },
     {

@@ -23,7 +23,7 @@ const productoEditando = ref(null)
 const nuevoProducto = ref({
     nombre: '',
     precio: '',
-    stock: '',
+    stock: 0,
     stock_minimo: 5,
     categoria_id: ''
 })
@@ -177,7 +177,7 @@ function reiniciarFormulario() {
     nuevoProducto.value = {
         nombre: '',
         precio: '',
-        stock: '',
+        stock: 0,
         stock_minimo: 5,
         categoria_id: ''
     }
@@ -372,16 +372,18 @@ function formatearPrecio(precio) {
                         >
                     </label>
 
-                    <label>
-                        Stock actual
-                        <input
-                            v-model="nuevoProducto.stock"
-                            type="number"
-                            min="0"
-                            step="1"
-                            required
-                        >
-                    </label>
+                    <div class="stock-readonly">
+                        <span>Stock actual</span>
+                        <strong v-if="modoEdicion">
+                            {{ nuevoProducto.stock }} unidades
+                        </strong>
+                        <strong v-else>
+                            0 unidades
+                        </strong>
+                        <small>
+                            Para modificar el stock, registrá una entrada o salida en Movimientos.
+                        </small>
+                    </div>
 
                     <label>
                         Stock mínimo
@@ -1324,5 +1326,30 @@ tbody tr:last-child td {
     .form-grid {
         grid-template-columns: 1fr;
     }
+}
+
+.stock-readonly {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    background: var(--surface-secondary, #f8fafc);
+}
+
+.stock-readonly span {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #64748b);
+}
+
+.stock-readonly strong {
+    font-size: 1rem;
+    color: var(--text-primary, #1e293b);
+}
+
+.stock-readonly small {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #64748b);
 }
 </style>

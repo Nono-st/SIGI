@@ -2,6 +2,23 @@
 
 header("Content-Type: application/json; charset=UTF-8");
 
+require_once __DIR__ . "/config/sesion.php";
+
+// RESPONDER SOLICITUDES
+function responder(int $codigo, array $datos): never
+{
+    http_response_code($codigo);
+    echo json_encode($datos);
+    exit;
+}
+
+// VERIFICAR SESIÓN
+if (!isset($_SESSION["usuario"])) {
+    responder(401, [
+        "error" => "No hay una sesión activa."
+    ]);
+}
+
 try {
     $db = require __DIR__ . "/config/database.php";
     $metodo = $_SERVER["REQUEST_METHOD"];
@@ -39,7 +56,7 @@ try {
 
         $nombre = trim($datos["nombre"] ?? "");
         $precio = $datos["precio"] ?? null;
-        $stock = $datos["stock"] ?? null;
+        $stock = 0;
         $stockMinimo = $datos["stock_minimo"] ?? null;
         $categoriaId = $datos["categoria_id"] ?? null;
 
@@ -97,9 +114,19 @@ try {
 
         $nombre = trim($datos["nombre"] ?? "");
         $precio = $datos["precio"] ?? null;
-        $stock = $datos["stock"] ?? null;
         $stockMinimo = $datos["stock_minimo"] ?? null;
         $categoriaId = $datos["categoria_id"] ?? null;
+
+        $productoActual = obtenerProducto($db, $id);
+
+        if (!$productoActual) {
+            http_response_code(404);
+            echo json_encode([
+                "error" => "El producto no existe."]);
+            exit;
+}
+
+$stock = (int) $productoActual["stock"];
 
         if (!validarProducto($nombre, $precio, $stock, $stockMinimo, $categoriaId)) {
             http_response_code(400);
@@ -118,16 +145,15 @@ try {
             SET
                 nombre = :nombre,
                 precio = :precio,
-                stock = :stock,
                 stock_minimo = :stock_minimo,
-                categoria_id = :categoria_id
+                categoria_id =
+                :categoria_id
             WHERE id = :id
         ");
 
         $consulta->execute([
             ":nombre" => $nombre,
             ":precio" => (float) $precio,
-            ":stock" => (int) $stock,
             ":stock_minimo" => (int) $stockMinimo,
             ":categoria_id" => (int) $categoriaId,
             ":id" => $id

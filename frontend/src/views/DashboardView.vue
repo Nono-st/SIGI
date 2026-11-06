@@ -1,4 +1,6 @@
 <script setup>
+import { ref, computed, onMounted } from 'vue'
+
 import {
     Package,
     Boxes,
@@ -11,142 +13,142 @@ import {
 
 import { RouterLink } from 'vue-router'
 
+import { obtenerProductos } from '../services/productos'
+import { obtenerMovimientos } from '../services/movimientos'
+
 // Nombre recibido desde el componente principal
 defineProps({
     userName: {
-    type: String,
-    default: 'Usuario',
+        type: String,
+        default: 'Usuario',
     },
 })
 
-// Estadísticas de ejemplo
-const statistics = [
-    {
-        title: 'Productos registrados',
-        value: 24,
-        description: 'En el catálogo',
-        icon: Package,
-        color: 'blue',
-    },
-    {
-        title: 'Unidades en stock',
-        value: 597,
-        description: 'Suma de todos los productos',
-        icon: Boxes,
-        color: 'green',
-    },
-    {
-        title: 'Con stock bajo',
-        value: 9,
-        description: '3 sin stock',
-        icon: AlertTriangle,
-        color: 'orange',
-    },
-    {
-        title: 'Movimientos recientes',
-        value: 10,
-        description: 'Últimos 7 días',
-        icon: ArrowLeftRight,
-        color: 'slate',
-    },
-]
+// Datos reales de la base de datos
+const productos = ref([])
+const movimientos = ref([])
 
-// Productos de ejemplo
-const lowStockProducts = [
-    {
-        id: 1,
-        name: 'Chicles menta x8',
-        category: 'Golosinas',
-        stock: 0,
-        minimum: 20,
-    },
-    {
-        id: 2,
-        name: 'Jugo de naranja 1 L',
-        category: 'Bebidas',
-        stock: 0,
-        minimum: 8,
-    },
-    {
-        id: 3,
-        name: 'Chocolate con leche 100 g',
-        category: 'Golosinas',
-        stock: 9,
-        minimum: 15,
-    },
-    {
-        id: 4,
-        name: 'Queso cremoso 250 g',
-        category: 'Lácteos',
-        stock: 0,
-        minimum: 5,
-    },
-    {
-        id: 5,
-        name: 'Maní salado 120 g',
-        category: 'Snacks',
-        stock: 6,
-        minimum: 10,
-    },
-]
+const cargando = ref(true)
+const error = ref('')
 
-// Movimientos de ejemplo
-const recentMovements = [
-    {
-        id: 1,
-        product: 'Coca-Cola 500 ml',
-        type: 'Entrada',
-        user: 'Laura Fernández',
-        date: '30/10/2026',
-        time: '10:30',
-        quantity: 48,
-    },
-    {
-        id: 2,
-        product: 'Chocolate con leche 100 g',
-        type: 'Salida',
-        user: 'Martín Gómez',
-        date: '30/10/2026',
-        time: '09:15',
-        quantity: 6,
-    },
-    {
-        id: 3,
-        product: 'Maní salado 120 g',
-        type: 'Salida',
-        user: 'Sofía Ramírez',
-        date: '29/10/2026',
-        time: '16:40',
-        quantity: 4,
-    },
-    {
-        id: 4,
-        product: 'Alfajor triple chocolate',
-        type: 'Entrada',
-        user: 'Laura Fernández',
-        date: '29/10/2026',
-        time: '14:20',
-        quantity: 40,
-    },
-    {
-        id: 5,
-        product: 'Agua mineral 1,5 L',
-        type: 'Salida',
-        user: 'Martín Gómez',
-        date: '28/10/2026',
-        time: '11:05',
-        quantity: 8,
-    },
-    {
-        id: 6,
-        product: 'Fideos tirabuzón 500 g',
-        type: 'Entrada',
-        user: 'Diego Torres',
-        date: '28/10/2026',
-        time: '09:45',
-        quantity: 20,
-    },
-]
+// Cargar información del sistema
+async function cargarDatos() {
+    cargando.value = true
+    error.value = ''
+
+    try {
+        const [datosProductos, datosMovimientos] = await Promise.all([
+            obtenerProductos(),
+            obtenerMovimientos(),
+        ])
+
+        productos.value = datosProductos
+        movimientos.value = datosMovimientos
+
+    } catch (err) {
+        error.value = err.message || 'No se pudieron cargar los datos.'
+    } finally {
+        cargando.value = false
+    }
+}
+
+// Productos con stock igual o inferior al mínimo
+const lowStockProducts = computed(() => {
+    return productos.value
+        .filter(producto =>
+            Number(producto.stock) <= Number(producto.stock_minimo)
+        )
+        .sort((a, b) => Number(a.stock) - Number(b.stock))
+        .map(producto => ({
+            id: producto.id,
+            name: producto.nombre,
+            category: producto.categoria,
+            stock: Number(producto.stock),
+            minimum: Number(producto.stock_minimo),
+        }))
+})
+
+// Últimos movimientos
+const recentMovements = computed(() => {
+    return movimientos.value.slice(0, 6).map(movimiento => {
+        const fecha = new Date(
+            movimiento.fecha.replace(' ', 'T') + 'Z'
+        )
+
+        return {
+            id: movimiento.id,
+            product: movimiento.producto,
+            type: movimiento.tipo === 'entrada' ? 'Entrada' : 'Salida',
+            user: movimiento.usuario,
+            date: fecha.toLocaleDateString('es-AR'),
+            time: fecha.toLocaleTimeString('es-AR', {
+                hour: '2-digit',
+                minute: '2-digit',
+            }),
+            quantity: Number(movimiento.cantidad),
+        }
+    })
+})
+
+// Movimientos de los últimos 7 días
+const movimientosSemana = computed(() => {
+    const ahora = new Date()
+    const haceSieteDias = new Date(
+        ahora.getTime() - 7 * 24 * 60 * 60 * 1000
+    )
+
+    return movimientos.value.filter(movimiento => {
+        const fecha = new Date(
+            movimiento.fecha.replace(' ', 'T') + 'Z'
+        )
+
+        return fecha >= haceSieteDias && fecha <= ahora
+    }).length
+})
+
+// Estadísticas del inventario
+const statistics = computed(() => {
+    const sinStock = productos.value.filter(
+        producto => Number(producto.stock) === 0
+    ).length
+
+    return [
+        {
+            title: 'Productos registrados',
+            value: productos.value.length,
+            description: 'En el catálogo',
+            icon: Package,
+            color: 'blue',
+        },
+        {
+            title: 'Unidades en stock',
+            value: productos.value.reduce(
+                (total, producto) => total + Number(producto.stock),
+                0
+            ),
+            description: 'Suma de todos los productos',
+            icon: Boxes,
+            color: 'green',
+        },
+        {
+            title: 'Con stock bajo',
+            value: lowStockProducts.value.length,
+            description: `${sinStock} sin stock`,
+            icon: AlertTriangle,
+            color: 'orange',
+        },
+        {
+            title: 'Movimientos recientes',
+            value: movimientosSemana.value,
+            description: 'Últimos 7 días',
+            icon: ArrowLeftRight,
+            color: 'slate',
+        },
+    ]
+})
+
+// Cargar datos al entrar al Dashboard
+onMounted(cargarDatos)
 </script>
 
 <template>
@@ -171,6 +173,14 @@ const recentMovements = [
                 </RouterLink>
             </div>
         </div>
+
+    <p v-if="cargando" class="dashboard-message">
+        Cargando información del inventario...
+    </p>
+
+    <p v-else-if="error" class="dashboard-message error">
+        {{ error }}
+    </p>
 
     <!-- Tarjetas estadísticas -->
     <div class="statistics">
@@ -235,6 +245,11 @@ const recentMovements = [
                 </span>
                 </td>
                 </tr>
+                <tr v-if="!cargando && !error && lowStockProducts.length === 0">
+                <td colspan="5" class="empty-state">
+                    No hay productos con stock bajo. ¡Todo en orden!
+                </td>
+</tr>
             </tbody>
         </table>
     </div>
@@ -277,6 +292,7 @@ const recentMovements = [
             </small>
             </div>
 
+
             <strong
             class="movement-quantity"
             :class="movement.type.toLowerCase()"
@@ -285,6 +301,11 @@ const recentMovements = [
             </strong>
             </div>
         </div>
+        <p
+        v-if="!cargando && !error && recentMovements.length === 0"
+        class="empty-state">
+        Todavía no hay movimientos registrados.
+        </p>
     </article>
 
     <!-- Accesos rápidos -->
@@ -725,5 +746,27 @@ td {
     .movement-type {
         width: 59px;
     }
+}
+
+/* Estados vacíos y mensajes */
+
+.empty-state {
+    padding: 24px 15px;
+    color: #64748b;
+    text-align: center;
+    font-size: 11px;
+}
+
+.dashboard-message {
+    padding: 12px 15px;
+    border-radius: 8px;
+    background: #f0f9ff;
+    color: #0369a1;
+    font-size: 12px;
+}
+
+.dashboard-message.error {
+    background: #fef2f2;
+    color: #dc2626;
 }
 </style>
